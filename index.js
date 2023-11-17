@@ -15,8 +15,9 @@ import { fileURLToPath } from 'url';
 const server = express();
 
 // Use the fileURLToPath function to get the directory name
+dotenv.config();
 server.use(cors({
-    origin: ["http://localhost:5173"],
+    origin: [process.env.FRONTEND_URL],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
 }))
@@ -37,7 +38,6 @@ const storage = multer.diskStorage({
     },
 });
 
-dotenv.config();
 server.use(express.json());
 server.use(cookieParser());
 server.use("/api/v-1/", UserRouter);
