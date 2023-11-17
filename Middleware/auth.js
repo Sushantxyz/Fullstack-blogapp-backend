@@ -8,7 +8,7 @@ export const authentication = (req, res, next) => {
     } else {
         res.status(404).json({
             success: false,
-            message: "Login first...."
+            message: "Login first..."
         });
     }
 }
