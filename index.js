@@ -17,7 +17,7 @@ const server = express();
 // Use the fileURLToPath function to get the directory name
 dotenv.config();
 server.use(cors({
-    origin: [process.env.FRONTEND_URL],
+    origin: [process.env.FRONTEND_URL,process.env.FRONTEND_URL1],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
 }))
