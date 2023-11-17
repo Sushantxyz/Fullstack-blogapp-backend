@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { User } from "../Schema/user.js";
+import Post from "../Schema/post.js"
 import bcrypt from "bcrypt";
 import CreateCookie from "../Middleware/cookies.js";
 import { ErrorHandler } from "../Middleware/errormiddleware.js";
@@ -20,7 +21,7 @@ export const login = async (req, res, next) => {
 
             if (!validatepass)
                 return next(new ErrorHandler("Invalid Email or Password", 400));
-            
+
             const token = jwt.sign({ _id: getusername._id }, process.env.SECRET_CODE);
 
             CreateCookie(res, token);
@@ -79,10 +80,10 @@ export const logout = async (req, res, next) => {
 export const home = async (req, res, next) => {
     const { Token } = req.cookies;
     if (Token) {
-    return res.json({
-        success: true,
-        message: "welcome to home page...",
-    });
+        return res.json({
+            success: true,
+            message: "welcome to home page...",
+        });
     }
 
     return res.json({
@@ -90,7 +91,7 @@ export const home = async (req, res, next) => {
         message: "Login First...",
     });
 };
-2
+
 export const getuser = async (req, res, next) => {
     try {
         const { Token } = req.cookies;
@@ -108,12 +109,12 @@ export const getuser = async (req, res, next) => {
             if (user) return res.status(200).json({ success: true, _user: data });
 
             else return next(new ErrorHandler("Error while fetching data...", 500));
-            
+
         } else {
             return next(new ErrorHandler("Login first ...", 201));
         }
     } catch (error) {
-        next(new ErrorHandler("Error while fetching user...",403));
+        next(new ErrorHandler("Error while fetching user...", 403));
     }
 };
 
@@ -126,25 +127,43 @@ export const updateuser = async (req, res, next) => {
 
         const userid = jwt.decode(Token, process.env.SECRET_CODE);
 
-        const { username, password, profilepicture } = req.body;
-        const hasspassword = await bcrypt.hash(password, 10);
-        req.body.password = hasspassword;
+        const userinfo = await User.findOne({ _id: userid });
 
-        //userid._id or userid both works
+        const oldusername = userinfo.username;
+
+        const { updatedusername, password, profilepicture } = req.body;
+
+        const hasspassword = await bcrypt.hash(password, 10);
+
+        const checkuser = await User.findOne({ username: updatedusername });
+
+        if (checkuser) {
+            if (checkuser.username !== oldusername) {
+                return next(new ErrorHandler("Username Already Exist", 400));
+            }
+        }
+
         const user = await User.findByIdAndUpdate(
-            userid._id,
+            { _id: userid._id },
             {
-                // $set: req.body
-                username,
-                password: hasspassword,
-                profilepicture,
+                $set: {
+                    username: updatedusername,
+                    password: hasspassword,
+                    profilepicture,
+                }
             },
+            { new: true }
+        );
+
+        const tasks = await Post.updateMany(
+            { username: oldusername },
+            { $set: { username: updatedusername } },
             { new: true }
         );
 
         res.status(200).json({ success: true, message: "Updated successfully..." });
     } catch (error) {
-        next(new ErrorHandler("Unable to update..."));
+        next(new ErrorHandler(`Unable to update. Error: ${error.message}`));
     }
 };
 
