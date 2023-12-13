@@ -22,10 +22,15 @@ server.use(cors({
     credentials: true,
 }))
 
+server.use(express.json());
+server.use(cookieParser());
+server.use("/api/v-1/", UserRouter);
+server.use("/api/v-1/post", PostRouter);
+server.use(errormiddleware);
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 
 server.use("/images", express.static(path.join(__dirname, "/images")));
 
@@ -38,13 +43,8 @@ const storage = multer.diskStorage({
     },
 });
 
-server.use(express.json());
-server.use(cookieParser());
-server.use("/api/v-1/", UserRouter);
-server.use("/api/v-1/post", PostRouter);
-server.use(errormiddleware);
-
 const upload = multer({ storage: storage });
+
 server.post("/api/v-1/upload", upload.single("file"), (req, res) => {
     res.status(200).json("File has been uploaded");
 });
