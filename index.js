@@ -11,6 +11,8 @@ import multer from "multer";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
+import {v2 as cloudinary} from 'cloudinary';
+
 
 const server = express();
 
@@ -47,8 +49,31 @@ const upload = multer({ storage: storage });
 
 server.post("/api/v-1/upload", upload.single("file"), (req, res) => {
     res.status(200).json("File has been uploaded");
+
+    // cloudinary.v2.uploader.upload(req.file.path, function (err, result){
+    //     if(err) {
+    //       console.log(err);
+    //       return res.status(500).json({
+    //         success: false,
+    //         message: "Error"
+    //       })
+    //     }
+    
+    //     res.status(200).json({
+    //       success: true,
+    //       message:"Uploaded!",
+    //       data: result
+    //     })
+    //   })
+    
 });
 
+          
+cloudinary.config({ 
+  cloud_name: 'denhuqejs', 
+  api_key: '496212331528885', 
+  api_secret: '1ZrHCocptwfO_0I_WbSGFMm0aIA' 
+});
 
 
 //DataBase
