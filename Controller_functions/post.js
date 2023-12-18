@@ -2,12 +2,13 @@ import Post from "../Schema/post.js"
 import { ErrorHandler } from "../Middleware/errormiddleware.js";
 import { User } from "../Schema/user.js";
 import jwt from "jsonwebtoken";
-
+import { uploadimage } from "../Utils/cloudinary.js";
 
 
 export const createpost = async (req, res, next) => {
     try {
         const { Token } = req.cookies;
+
         const userid = jwt.decode(Token, process.env.SECRET_CODE);
 
         //can add if else to check if the id are same...
@@ -18,9 +19,18 @@ export const createpost = async (req, res, next) => {
 
         const { title, description, photo, category } = req.body;
 
+        let result;
+
+
+        try {
+            result = await uploadimage(photo, username, "Posts");
+        } catch (error) {
+            next(error);
+        }
+
         const newuser = await Post.create({
-            title, description, photo, username, category
-        })
+            title, description, photo: { public_id: result.public_id, url: result.url }, username, category
+        });
 
         return res.status(200).json({ success: true, message: "Post Created sucessfully...", id: newuser._id });
 

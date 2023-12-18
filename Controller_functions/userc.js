@@ -2,9 +2,10 @@ import jwt from "jsonwebtoken";
 import { User } from "../Schema/user.js";
 import Post from "../Schema/post.js"
 import bcrypt from "bcrypt";
-import CreateCookie from "../Middleware/cookies.js";
+import CreateCookie from "../Utils/cookies.js";
 import { ErrorHandler } from "../Middleware/errormiddleware.js";
-import { deletecookie } from "../Middleware/deletecookie.js";
+import { deletecookie } from "../Utils/deletecookie.js";
+import { uploadimage } from "../Utils/cloudinary.js";
 
 export const login = async (req, res, next) => {
     try {
@@ -143,13 +144,22 @@ export const updateuser = async (req, res, next) => {
             }
         }
 
+        let result;
+
+        try {
+            result = await uploadimage(profilepicture, updatedusername, "User_Avatar");
+
+        } catch (error) {
+            next(error);
+        }
+
         const user = await User.findByIdAndUpdate(
             { _id: userid._id },
             {
                 $set: {
                     username: updatedusername,
                     password: hasspassword,
-                    profilepicture,
+                    profilepicture: { public_id: result.public_id, url: result.url },
                 }
             },
             { new: true }
