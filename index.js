@@ -16,13 +16,13 @@ const server = express();
 // Use the fileURLToPath function to get the directory name
 dotenv.config();
 server.use(cors({
-    origin: [process.env.FRONTEND_URL,process.env.FRONTEND_URL1],
+    origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL1],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
 }))
 
-server.use(express.json({limit:"50mb"}));
-server.use(urlencoded({extended:"true",limit:"50mb"}));
+server.use(express.json({ limit: "50mb" }));
+server.use(express.urlencoded({ extended: "true", limit: "50mb" }));
 server.use(cookieParser());
 server.use("/api/v-1/", UserRouter);
 server.use("/api/v-1/post", PostRouter);

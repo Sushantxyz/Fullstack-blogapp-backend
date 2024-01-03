@@ -65,7 +65,6 @@ export const getposts = async (req, res, next) => {
         })
 
     } catch (error) {
-        console.log(2);
         next(error)
     }
 }
@@ -120,5 +119,4 @@ export const deletepost = async (req, res, next) => {
         next(error)
     }
 }
-
 
