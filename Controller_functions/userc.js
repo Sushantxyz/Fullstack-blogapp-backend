@@ -1,194 +1,134 @@
 import jwt from "jsonwebtoken";
 import { User } from "../Schema/user.js";
-import Post from "../Schema/post.js"
+import Post from "../Schema/post.js";
 import bcrypt from "bcrypt";
 import CreateCookie from "../Utils/cookies.js";
 import { ErrorHandler } from "../Middleware/errormiddleware.js";
 import { deletecookie } from "../Utils/deletecookie.js";
 import { uploadimage } from "../Utils/cloudinary.js";
+import asyncHandler from "../Utils/asyncHandler.js";
+import nodeCache from "../Utils/Cache.js";
 
-export const login = async (req, res, next) => {
-    try {
+export const login = asyncHandler(async (req, res, next) => {
+    if (!req.userID) {
+        const { username, password } = req.body;
 
-        const { Token } = req.cookies;
-        if (!Token) {
-            const { username, password } = req.body;
+        const getusername = await User.findOne({ username }).select("+password");
 
-            const getusername = await User.findOne({ username }).select("+password");
+        if (!getusername) return next(new ErrorHandler("User don't exist !", 404));
 
-            if (!getusername) return next(new ErrorHandler("User don't exist...", 404));
+        const validatepass = await bcrypt.compare(password, getusername.password);
 
-            const validatepass = await bcrypt.compare(password, getusername.password);
+        if (!validatepass)
+            return next(new ErrorHandler("Invalid Email or Password !", 400));
 
-            if (!validatepass)
-                return next(new ErrorHandler("Invalid Email or Password", 400));
+        const token = jwt.sign({ _id: getusername._id }, process.env.SECRET_CODE);
 
-            const token = jwt.sign({ _id: getusername._id }, process.env.SECRET_CODE);
-
-            CreateCookie(res, token);
-        }
-        else {
-            next(new ErrorHandler("Already logged in...", 400));//
-
-        }
-
-    } catch (error) {
-        next(new ErrorHandler("Error logging user... "));
-    }
-};
-
-export const register = async (req, res, next) => {
-    try {
-        const { Token } = req.cookies;
-        if (!Token) {
-            const { username, email, password } = req.body;
-
-            const getuser = await User.findOne({ email });
-
-            if (getuser) return next(new ErrorHandler("User Already Exist", 400));
-
-            const hasspassword = await bcrypt.hash(password, 10);
-
-            const newuser = await User.create({
-                username,
-                email,
-                password: hasspassword,
-                profilepicture: "",
-            });
-            newuser.save();
-
-            const tokenreg = jwt.sign({ _id: newuser._id }, process.env.SECRET_CODE);
-
-            CreateCookie(res, tokenreg);
-        }
-        else {
-            next(new ErrorHandler("Already logged in...", 400));//
-        }
-    } catch (error) {
-        next(new ErrorHandler("Error registering user... "));
-    }
-};
-
-export const logout = async (req, res, next) => {
-    const { Token } = req.cookies;
-    if (Token) {
-        deletecookie("Token", res, "Logout successfully ...");
+        CreateCookie(res, token);
     } else {
-        next(new ErrorHandler("Login first... "));
+        next(new ErrorHandler("Already logged in !", 400)); //
     }
-};
+});
 
-export const home = async (req, res, next) => {
-    const { Token } = req.cookies;
-    if (Token) {
-        return res.json({
-            success: true,
-            message: "welcome to home page...",
-        });
-    }
+export const register = asyncHandler(async (req, res, next) => {
+    if (!req.userID) {
+        const { username, email, password } = req.body;
 
-    return res.json({
-        success: false,
-        message: "Login First...",
-    });
-};
+        const getuser = await User.findOne({ email });
 
-export const getuser = async (req, res, next) => {
-    try {
-        const { Token } = req.cookies;
-
-        if (Token) {
-
-            const userid = jwt.decode(Token, process.env.SECRET_CODE);
-
-            //can add if else to check if the id are same...
-
-            const user = await User.findOne({ _id: userid });
-
-            const { password, ...data } = user._doc;
-
-            if (user) return res.status(200).json({ success: true, _user: data });
-
-            else return next(new ErrorHandler("Error while fetching data...", 500));
-
-        } else {
-            return next(new ErrorHandler("Login first ...", 201));
-        }
-    } catch (error) {
-        next(new ErrorHandler("Error while fetching user...", 403));
-    }
-};
-
-export const updateuser = async (req, res, next) => {
-    try {
-        const { Token } = req.cookies;
-
-        if (!Token)
-            return next(new ErrorHandler("Error while fetching profile..."));
-
-        const userid = jwt.decode(Token, process.env.SECRET_CODE);
-
-        const userinfo = await User.findOne({ _id: userid });
-
-        const oldusername = userinfo.username;
-
-        const { updatedusername, password, profilepicture } = req.body;
+        if (getuser) return next(new ErrorHandler("User Already Exist !", 400));
 
         const hasspassword = await bcrypt.hash(password, 10);
 
-        const checkuser = await User.findOne({ username: updatedusername });
+        const newuser = await User.create({
+            username,
+            email,
+            password: hasspassword,
+            profilepicture: "",
+        });
+        newuser.save();
 
-        if (checkuser) {
-            if (checkuser.username !== oldusername) {
-                return next(new ErrorHandler("Username Already Exist", 400));
-            }
+        const tokenreg = jwt.sign({ _id: newuser._id }, process.env.SECRET_CODE);
+
+        CreateCookie(res, tokenreg);
+    } else {
+        next(new ErrorHandler("Already logged in !", 400));
+    }
+});
+
+export const logout = asyncHandler(async (req, res, next) => {
+    deletecookie("Token", res, "Logout successfully !");
+    nodeCache.flushAll();
+});
+
+export const getuser = asyncHandler(async (req, res, next) => {
+    const check = nodeCache.has("user");
+
+    let user;
+    if (check) {
+        const cachedUser = nodeCache.get("user");
+        user = JSON.parse(cachedUser);
+    } else {
+        user = await User.findOne({ _id: req.userID }, { password: 0 });
+        nodeCache.set("user", JSON.stringify(user));
+    }
+
+    if (user) {
+        return res.status(200).json({ success: true, _user: user });
+    } else {
+        return next(new ErrorHandler("Error while fetching data", 500));
+    }
+});
+
+export const updateuser = asyncHandler(async (req, res, next) => {
+    if (!req.userID)
+        return next(new ErrorHandler("Error while fetching profile"));
+
+    const userinfo = await User.findOne({ _id: req.userID }, { username: 1 });
+
+    const oldusername = userinfo.username;
+
+    const { updatedusername, password, profilepicture } = req.body;
+
+    const hasspassword = await bcrypt.hash(password, 10);
+
+    const checkuser = await User.findOne({ username: updatedusername });
+
+    if (checkuser) {
+        if (checkuser.username !== oldusername) {
+            return next(new ErrorHandler("Username Already Exist", 400));
         }
+    }
 
-        let result;
+    let result;
 
-        try {
-            result = await uploadimage(profilepicture, updatedusername, "User_Avatar");
+    result = await uploadimage(profilepicture, updatedusername, "User_Avatar");
 
-        } catch (error) {
-            next(error);
-        }
-
-        const user = await User.findByIdAndUpdate(
-            { _id: userid._id },
-            {
-                $set: {
-                    username: updatedusername,
-                    password: hasspassword,
-                    profilepicture: { public_id: result.public_id, url: result.url },
-                }
+    await User.findByIdAndUpdate(
+        req.userID,
+        {
+            $set: {
+                username: updatedusername,
+                password: hasspassword,
+                profilepicture: { public_id: result.public_id, url: result.url },
             },
-            { new: true }
-        );
+        },
+        { new: true }
+    );
 
-        const tasks = await Post.updateMany(
-            { username: oldusername },
-            { $set: { username: updatedusername } },
-            { new: true }
-        );
+    await Post.updateMany(
+        { username: oldusername },
+        { $set: { username: updatedusername } },
+        { new: true }
+    );
 
-        res.status(200).json({ success: true, message: "Updated successfully..." });
-    } catch (error) {
-        next(new ErrorHandler(`Unable to update. Error: ${error.message}`));
-    }
-};
+    nodeCache.flushAll();
 
-export const deleteuser = async (req, res, next) => {
-    try {
-        const { Token } = req.cookies;
+    res.status(200).json({ success: true, message: "Updated successfully !" });
+});
 
-        if (!Token) return next(new ErrorHandler("Login first...", 404));
+export const deleteuser = asyncHandler(async (req, res, next) => {
+    const user = await User.findByIdAndDelete({ _id: req.user._id });
 
-        const userid = jwt.decode(Token, process.env.SECRET_CODE);
-
-        const user = await User.findByIdAndDelete({ _id: userid._id });
-
-        deletecookie("Token", res, "User deleted ...");
-    } catch (error) {
-        next(new ErrorHandler("Unable to delete user..."));
-    }
-};
+    deletecookie("Token", res, "User deleted !");
+});

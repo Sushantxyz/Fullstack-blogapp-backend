@@ -8,12 +8,12 @@ import cookieParser from "cookie-parser";
 import errormiddleware from "./Middleware/errormiddleware.js";
 import { PostRouter } from "./Routes/PostRoute.js";
 import cors from "cors";
-import urlencoded from "body-parser";
 
 
 const server = express();
 
 // Use the fileURLToPath function to get the directory name
+
 dotenv.config();
 server.use(cors({
     origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL1],

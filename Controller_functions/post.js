@@ -1,122 +1,126 @@
-import Post from "../Schema/post.js"
+import Post from "../Schema/post.js";
 import { ErrorHandler } from "../Middleware/errormiddleware.js";
 import { User } from "../Schema/user.js";
-import jwt from "jsonwebtoken";
 import { uploadimage } from "../Utils/cloudinary.js";
+import asyncHandler from "../Utils/asyncHandler.js";
+import nodeCache from "../Utils/Cache.js";
 
+export const createpost = asyncHandler(async (req, res, next) => {
+    const { username } = await User.findById(req.userID, { username: 1 });
 
-export const createpost = async (req, res, next) => {
-    try {
-        const { Token } = req.cookies;
+    const { title, description, photo, category } = req.body;
 
-        const userid = jwt.decode(Token, process.env.SECRET_CODE);
+    let result;
+    result = await uploadimage(photo, username, "Posts");
 
-        //can add if else to check if the id are same...
+    const newuser = await Post.create({
+        title,
+        description,
+        photo: { public_id: result.public_id, url: result.url },
+        username,
+        category,
+    });
 
-        const user = await User.findById({ _id: userid._id });
+    nodeCache.flushAll();
 
-        const { username, ...data } = user._doc;
+    return res.status(200).json({
+        success: true,
+        message: "Post Created sucessfully !",
+        id: newuser._id,
+    });
+});
 
-        const { title, description, photo, category } = req.body;
+export const getposts = asyncHandler(async (req, res, next) => {
+    const username = req.query.username;
+    const cat = req.query.cat;
+    let posts;
 
-        let result;
+    if (username) {
+        const userpost = nodeCache.get(`posts/${username}`)
+        if (userpost) {
+            posts = JSON.parse(userpost)
 
-
-        try {
-            result = await uploadimage(photo, username, "Posts");
-        } catch (error) {
-            next(error);
-        }
-
-        const newuser = await Post.create({
-            title, description, photo: { public_id: result.public_id, url: result.url }, username, category
-        });
-
-        return res.status(200).json({ success: true, message: "Post Created sucessfully...", id: newuser._id });
-
-    } catch (error) {
-        next(error);
-    }
-}
-
-export const getposts = async (req, res, next) => {
-    try {
-        const username = req.query.username;
-        const cat = req.query.cat;
-
-        let posts;
-        if (username) {
+        } else {
             posts = await Post.find({ username });
+            nodeCache.set(`posts/${username}`, JSON.stringify(posts));
         }
-        else if (cat) {
+
+    } else if (cat) {
+        const catpost = nodeCache.has(`posts/${cat}`)
+        if (catpost) {
+            const catpost = nodeCache.get(`posts/${cat}`)
+            posts = JSON.parse(catpost)
+
+        } else {
             posts = await Post.find({
                 category: {
                     $in: [cat],
                 },
             });
+            nodeCache.set(`posts/${cat}`, JSON.stringify(posts));
         }
-        else {
+    } else {
+        const allposts = nodeCache.get(`posts`)
+        if (allposts) {
+            posts = JSON.parse(allposts)
+        } else {
             posts = await Post.find();
+            nodeCache.set(`posts`, JSON.stringify(posts));
         }
-
-        res.json({
-            success: true,
-            posts
-        })
-
-    } catch (error) {
-        next(error)
     }
-}
 
-export const getpost = async (req, res, next) => {
-    try {
+    res.json({
+        success: true,
+        posts,
+    });
+});
 
-        const { id } = req.params;
+export const getpost = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
 
-        const post = await Post.findById(id);
+    const post = await Post.findById(id);
 
-        if (!post) return next(new ErrorHandler("Error while fetching Post...", 500));
+    if (!post) return next(new ErrorHandler("Error while fetching Post...", 500));
 
-        return res.status(200).json({ success: true, message: "Post Fetched sucessfully...", postdata: post });
+    return res.status(200).json({
+        success: true,
+        message: "Post Fetched sucessfully...",
+        postdata: post,
+    });
+});
 
-        // if (user) return res.status(200).json({ success: true, _user: data });
+export const updatepost = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
 
-        // else return next(new ErrorHandler("Error while fetching data...", 500));
+    const { title, description, photo, category } = req.body;
 
-    } catch (error) {
-        next(error)
-    }
-}
+    await Post.findByIdAndUpdate(
+        id,
+        {
+            title,
+            description,
+            photo,
+            category,
+        },
+        { new: true }
+    );
 
-export const updatepost = async (req, res, next) => {
-    try {
-        const { id } = req.params;
+    nodeCache.flushAll();
 
-        const { title, description, photo, category } = req.body;
+    return res
+        .status(200)
+        .json({ success: true, message: "Post Updated successfully..." });
 
-        const post = await Post.findByIdAndUpdate(id, {
-            title, description, photo, category
-        }, { new: true });
+});
 
-        return res.status(200).json({ success: true, message: "Post Updated successfully..." });
+export const deletepost = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
 
-    } catch (error) {
-        next(error)
-    }
-}
+    await Post.findByIdAndDelete(id);
 
-export const deletepost = async (req, res, next) => {
-    try {
+    nodeCache.flushAll();
 
-        const { id } = req.params;
-
-        const post = await Post.findByIdAndDelete(id);
-
-        return res.status(200).json({ success: true, message: "Post Deleted successfully..." });
-
-    } catch (error) {
-        next(error)
-    }
-}
-
+    return res
+        .status(200)
+        .json({ success: true, message: "Post Deleted successfully..." });
+});
