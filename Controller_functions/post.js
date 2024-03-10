@@ -33,7 +33,7 @@ export const createpost = asyncHandler(async (req, res, next) => {
 export const getposts = asyncHandler(async (req, res, next) => {
     const username = req.query.username;
     const cat = req.query.cat;
-    const limit = req.query.limit || 3
+    const limit = req.query.limit || 6
     const skip = req.query.skip
     let posts;
     let count;
