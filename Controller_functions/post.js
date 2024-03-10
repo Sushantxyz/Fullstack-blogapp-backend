@@ -33,45 +33,121 @@ export const createpost = asyncHandler(async (req, res, next) => {
 export const getposts = asyncHandler(async (req, res, next) => {
     const username = req.query.username;
     const cat = req.query.cat;
+    const limit = req.query.limit || 3
+    const skip = req.query.skip
     let posts;
+    let count;
 
     if (username) {
-        const userpost = nodeCache.get(`posts/${username}`)
-        if (userpost) {
-            posts = JSON.parse(userpost)
+        if (limit && skip) {
+            const userpost = nodeCache.get(`posts/${username}/${skip}/${limit}`);
 
+            if (userpost) {
+                posts = JSON.parse(userpost);
+            } else {
+                posts = await Post.find({ username })
+                    .skip(Number(skip))
+                    .limit(Number(limit));
+                nodeCache.set(`posts/${username}`, JSON.stringify(posts));
+            }
         } else {
-            posts = await Post.find({ username });
-            nodeCache.set(`posts/${username}`, JSON.stringify(posts));
+            const userpost = nodeCache.get(`posts/${username}/default`);
+            if (userpost) {
+                posts = JSON.parse(userpost);
+            } else {
+                posts = await Post.find({ username }).limit(Number(limit));
+                nodeCache.set(`posts/${username}/default`, JSON.stringify(posts));
+            }
+        }
+
+        const cacheUserPostCount = nodeCache.get(`count/${username}`);
+
+        if (cacheUserPostCount) {
+            count = JSON.parse(cacheUserPostCount);
+        } else {
+            const userPostCount = await Post.find({ username }).countDocuments();
+            count = userPostCount;
+            nodeCache.set(`count/${username}`, JSON.stringify(userPostCount));
         }
 
     } else if (cat) {
-        const catpost = nodeCache.has(`posts/${cat}`)
-        if (catpost) {
-            const catpost = nodeCache.get(`posts/${cat}`)
-            posts = JSON.parse(catpost)
+
+        if (limit && skip) {
+            const catpost = nodeCache.get(`posts/${cat}/${skip}/${limit}`);
+            if (catpost) {
+                posts = JSON.parse(catpost);
+            } else {
+                posts = await Post.find({
+                    category: {
+                        $in: [cat],
+                    },
+                })
+                    .skip(Number(skip))
+                    .limit(Number(limit));
+                nodeCache.set(`posts/${cat}`, JSON.stringify(posts));
+            }
+        } else {
+            const catpost = nodeCache.get(`posts/${cat}/default`);
+            if (catpost) {
+                posts = JSON.parse(catpost);
+            } else {
+                posts = await Post.find({
+                    category: {
+                        $in: [cat],
+                    },
+                }).limit(Number(limit));
+                nodeCache.set(`posts/${cat}/default`, JSON.stringify(posts));
+            }
+        }
+        const cacheCatPostCount = nodeCache.get(`count/${cat}`);
+        if (cacheCatPostCount) {
+            count = JSON.parse(cacheCatPostCount);
 
         } else {
-            posts = await Post.find({
+            const userCatPostCount = await Post.find({
                 category: {
                     $in: [cat],
                 },
-            });
-            nodeCache.set(`posts/${cat}`, JSON.stringify(posts));
+            }).countDocuments();
+            count = userCatPostCount;
+
+            nodeCache.set(`count/${cat}`, JSON.stringify(userCatPostCount));
         }
+
     } else {
-        const allposts = nodeCache.get(`posts`)
-        if (allposts) {
-            posts = JSON.parse(allposts)
+        if (limit && skip) {
+            const allposts = nodeCache.get(`posts/?${limit}&${skip}`);
+            if (allposts) {
+                posts = JSON.parse(allposts);
+
+            } else {
+                posts = await Post.find().skip(Number(skip)).limit(Number(limit));
+                nodeCache.set(`posts/?${limit}&${skip}`, JSON.stringify(posts));
+            }
+
         } else {
-            posts = await Post.find();
-            nodeCache.set(`posts`, JSON.stringify(posts));
+            const allposts = nodeCache.get(`posts/default`);
+            if (allposts) {
+                posts = JSON.parse(allposts);
+            } else {
+                posts = await Post.find().limit(Number(limit));
+                nodeCache.set(`posts/default`, JSON.stringify(posts));
+            }
+        }
+        const cachePostCount = nodeCache.get(`count/default`);
+
+        if (cachePostCount) {
+            count = JSON.parse(cachePostCount);
+        } else {
+            const allPostsCount = await Post.find().countDocuments();
+            count = allPostsCount;
+            nodeCache.set(`count/default`, JSON.stringify(allPostsCount));
         }
     }
-
     res.json({
         success: true,
         posts,
+        count,
     });
 });
 
@@ -110,7 +186,6 @@ export const updatepost = asyncHandler(async (req, res, next) => {
     return res
         .status(200)
         .json({ success: true, message: "Post Updated successfully..." });
-
 });
 
 export const deletepost = asyncHandler(async (req, res, next) => {

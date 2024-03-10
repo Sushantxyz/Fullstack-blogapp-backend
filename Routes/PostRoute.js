@@ -3,7 +3,6 @@ import { createpost, deletepost, getpost, getposts, updatepost } from "../Contro
 import { authentication } from "../Middleware/auth.js";
 
 
-
 export const PostRouter = express.Router();
 
 PostRouter.route("/:id").get(authentication, getpost).put(authentication, updatepost).delete(authentication, deletepost);
