@@ -9,7 +9,7 @@ export const authentication = (req, res, next) => {
 
     next();
   } else {
-    res.status(404).json({
+    res.status(401).json({
       success: false,
       message: "Login first...",
     });
